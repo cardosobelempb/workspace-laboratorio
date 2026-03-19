@@ -195,6 +195,10 @@ network:
 **Aplicar configuração**:
 
 ```bash
+
+# Corrigir a permissão do arquivo
+sudo chmod 600 /etc/netplan/00-installer-config.yaml
+
 # Testar configuração
 sudo netplan try
 
