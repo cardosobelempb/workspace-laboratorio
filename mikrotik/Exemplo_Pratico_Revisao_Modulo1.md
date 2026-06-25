@@ -13,7 +13,7 @@ Em ambiente de produção, evite CamelCase ou misturar maiúsculas/minúsculas e
 - **Palavras separadas por hífen** (`kebab-case`)
 - **Prefixo indicando a função** (`wan-`, `lan-`, `vlan-`, `pool-`, `dhcp-`)
 
-Exemplos: `wan-operadora`, `lan-servidores`, `pool-financeiro`, `dhcp-visitantes`.
+Exemplos: `ether1-wan-operadora`, `ether3-lan-servidores`, `pool-financeiro`, `dhcp-visitantes`.
 
 ---
 
@@ -22,6 +22,7 @@ Exemplos: `wan-operadora`, `lan-servidores`, `pool-financeiro`, `dhcp-visitantes
 ```bash
 /tool romon
 set enabled=yes
+secrets=cursomikrotik
 ```
 
 **Verificação:**
@@ -40,11 +41,11 @@ set name="mikrotik-001"
 
 # Renomear as interfaces para facilitar a administracao
 /interface ethernet
-set [find default-name=ether1] name=wan-operadora
-set [find default-name=ether2] name=lan-geral
-set [find default-name=ether3] name=lan-financeiro
-set [find default-name=ether4] name=lan-servidores
-set [find default-name=ether5] name=lan-visitantes
+set [find default-name=ether1] name=ether1-wan-operadora
+set [find default-name=ether2] name=ether2-lan-geral
+set [find default-name=ether3] name=ether3-ether3-lan-financeiro
+set [find default-name=ether4] name=ether4-lan-servidores
+set [find default-name=ether5] name=ether5-lan-visitantes
 ```
 
 **Verificação:**
@@ -60,15 +61,15 @@ set [find default-name=ether5] name=lan-visitantes
 ```bash
 # IP na interface de LAN geral
 /ip address
-add address=192.168.1.1/24 interface=lan-geral
+add address=192.168.1.1/24 interface=ether2-lan-geral
 
 # Pool de enderecos
 /ip pool
-add name=pool-lan-geral ranges=192.168.1.10-192.168.1.254
+add name=pool-ether2-lan-geral ranges=192.168.1.10-192.168.1.254
 
 # DHCP Server
 /ip dhcp-server
-add name=dhcp-lan-geral interface=lan-geral address-pool=pool-lan-geral disabled=no
+add name=dhcp-ether2-lan-geral interface=ether2-lan-geral address-pool=pool-ether2-lan-geral disabled=no
 
 /ip dhcp-server network
 add address=192.168.1.0/24 gateway=192.168.1.1 dns-server=8.8.8.8,1.1.1.1
@@ -89,11 +90,11 @@ add address=192.168.1.0/24 gateway=192.168.1.1 dns-server=8.8.8.8,1.1.1.1
 ```bash
 # DHCP Client na interface WAN
 /ip dhcp-client
-add interface=wan-operadora disabled=no add-default-route=yes use-peer-dns=no
+add interface=ether1-wan-operadora disabled=no add-default-route=yes use-peer-dns=no
 
 # NAT (masquerade) para a interface WAN
 /ip firewall nat
-add chain=srcnat out-interface=wan-operadora action=masquerade comment="nat - saida internet"
+add chain=srcnat out-interface=ether1-wan-operadora action=masquerade comment="nat - saida internet"
 ```
 
 **Verificação:**
@@ -106,7 +107,7 @@ add chain=srcnat out-interface=wan-operadora action=masquerade comment="nat - sa
 > 🔁 **Variação — CPE em bridge com PPPoE client:**
 > ```bash
 > /interface pppoe-client
-> add name=pppoe-out1 interface=wan-operadora user=publico password=123 \
+> add name=pppoe-out1 interface=ether1-wan-operadora user=publico password=123 \
 >     disabled=no add-default-route=yes use-peer-dns=no
 >
 > /ip firewall nat
@@ -120,31 +121,31 @@ add chain=srcnat out-interface=wan-operadora action=masquerade comment="nat - sa
 ```bash
 # Rede financeiro - 192.168.2.0/24
 /ip address
-add address=192.168.2.1/24 interface=lan-financeiro
+add address=192.168.2.1/24 interface=-ether3-lan-financeiro
 /ip pool
 add name=pool-financeiro ranges=192.168.2.10-192.168.2.254
 /ip dhcp-server
-add name=dhcp-financeiro interface=lan-financeiro address-pool=pool-financeiro disabled=no
+add name=dhcp-financeiro interface=ether3-lan-financeiro address-pool=pool-financeiro disabled=no
 /ip dhcp-server network
 add address=192.168.2.0/24 gateway=192.168.2.1 dns-server=8.8.8.8,1.1.1.1
 
 # Rede servidores - 192.168.3.0/24
 /ip address
-add address=192.168.3.1/24 interface=lan-servidores
+add address=192.168.3.1/24 interface=ether4-lan-servidores
 /ip pool
 add name=pool-servidores ranges=192.168.3.10-192.168.3.254
 /ip dhcp-server
-add name=dhcp-servidores interface=lan-servidores address-pool=pool-servidores disabled=no
+add name=dhcp-servidores interface=ether3-lan-servidores address-pool=pool-servidores disabled=no
 /ip dhcp-server network
 add address=192.168.3.0/24 gateway=192.168.3.1 dns-server=8.8.8.8,1.1.1.1
 
 # Rede visitantes - 192.168.4.0/24
 /ip address
-add address=192.168.4.1/24 interface=lan-visitantes
+add address=192.168.4.1/24 interface=ether5-lan-visitantes
 /ip pool
 add name=pool-visitantes ranges=192.168.4.10-192.168.4.254
 /ip dhcp-server
-add name=dhcp-visitantes interface=lan-visitantes address-pool=pool-visitantes disabled=no
+add name=dhcp-visitantes interface=ether5-lan-visitantes address-pool=pool-visitantes disabled=no
 /ip dhcp-server network
 add address=192.168.4.0/24 gateway=192.168.4.1 dns-server=8.8.8.8,1.1.1.1
 ```
@@ -205,8 +206,8 @@ set ssh address=192.168.1.0/24,192.168.2.0/24 port=22
 /interface list
 add name=lista-gerencia
 /interface list member
-add list=lista-gerencia interface=lan-geral
-add list=lista-gerencia interface=lan-financeiro
+add list=lista-gerencia interface=ether2-lan-geral
+add list=lista-gerencia interface=ether3-lan-financeiro
 
 /tool mac-server
 set allowed-interface-list=lista-gerencia
