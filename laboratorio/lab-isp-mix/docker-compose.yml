@@ -1,0 +1,219 @@
+name: lab-isp
+
+# Lab ISP misto:
+#   VIVO, CLARO, MIKROTIK-001  -> RouterOS real (evilfreelancer/docker-routeros)
+#   GOIASTECH, CONTABILIDADE   -> Alpine + FRR + SSH (so BGP, acesso SSH)
+# Backbone 10.250.0.0/24, eBGP entre si. Sem bind-mount de arquivo.
+#
+# Acesso SSH:
+#   VIVO          ssh -p 31022 admin@localhost   (RouterOS, senha admin)
+#   CLARO         ssh -p 32022 admin@localhost   (RouterOS, senha admin)
+#   MIKROTIK-001  ssh -p 35022 admin@localhost   (RouterOS, senha admin)
+#   GOIASTECH     ssh -p 33022 root@localhost    (Alpine, senha lab123)
+#   CONTABILIDADE ssh -p 34022 root@localhost    (Alpine, senha lab123)
+
+networks:
+  net-backbone:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.250.0.0/24
+
+services:
+  vivo-core:
+    image: evilfreelancer/docker-routeros:latest
+    container_name: vivo-core
+    hostname: vivo-core
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    devices: [/dev/net/tun]
+    environment:
+      ROUTEROS_DHCP_DNS: "8.8.8.8 1.1.1.1"
+    ports: ["31022:22", "31091:8291", "31028:8728"]
+    volumes: [vivo_data:/data]
+    networks:
+      default: {}
+      net-backbone:
+        ipv4_address: 10.250.0.10
+
+  claro-core:
+    image: evilfreelancer/docker-routeros:latest
+    container_name: claro-core
+    hostname: claro-core
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    devices: [/dev/net/tun]
+    environment:
+      ROUTEROS_DHCP_DNS: "8.8.8.8 1.1.1.1"
+    ports: ["32022:22", "32091:8291", "32028:8728"]
+    volumes: [claro_data:/data]
+    networks:
+      default: {}
+      net-backbone:
+        ipv4_address: 10.250.0.20
+
+  mikrotik-001:
+    image: evilfreelancer/docker-routeros:latest
+    container_name: mikrotik-001
+    hostname: mikrotik-001
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    devices: [/dev/net/tun]
+    environment:
+      ROUTEROS_DHCP_DNS: "8.8.8.8 1.1.1.1"
+    ports: ["35022:22", "35091:8291", "35028:8728"]
+    volumes: [mikrotik_data:/data]
+    networks:
+      default: {}
+      net-backbone:
+        ipv4_address: 10.250.0.50
+
+  goiastech-core:
+    image: alpine:latest
+    container_name: goiastech-core
+    hostname: goiastech-core
+    restart: unless-stopped
+    privileged: true
+    cap_add: [NET_ADMIN]
+    ports: ["33022:22"]
+    networks:
+      net-backbone:
+        ipv4_address: 10.250.0.30
+    command:
+      - /bin/sh
+      - -c
+      - |
+        apk add --no-cache frr iproute2 openssh
+        ssh-keygen -A
+        echo 'root:lab123' | chpasswd
+        sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+        /usr/sbin/sshd
+        sed -i 's/^bgpd=no/bgpd=yes/' /etc/frr/daemons
+        ip addr add 10.10.0.1/24 dev lo 2>/dev/null || true
+        /etc/init.d/frr start || /usr/lib/frr/frrinit.sh start || (zebra -d ; bgpd -d)
+        sleep 5
+        vtysh -c 'configure terminal' -c 'router bgp 65030' -c ' bgp router-id 10.250.0.30' -c ' no bgp ebgp-requires-policy' -c ' neighbor 10.250.0.10 remote-as 65010' -c ' address-family ipv4 unicast' -c '  network 10.10.0.0/24' -c '  neighbor 10.250.0.10 activate' -c '  exit-address-family'
+        echo "GOIASTECH (Alpine+FRR+SSH) pronto - AS 65030 - ssh root@localhost -p 33022 (senha lab123)"
+        tail -f /dev/null
+
+  contabilidade-core:
+    image: alpine:latest
+    container_name: contabilidade-core
+    hostname: contabilidade-core
+    restart: unless-stopped
+    privileged: true
+    cap_add: [NET_ADMIN]
+    ports: ["34022:22"]
+    networks:
+      net-backbone:
+        ipv4_address: 10.250.0.40
+    command:
+      - /bin/sh
+      - -c
+      - |
+        apk add --no-cache frr iproute2 openssh
+        ssh-keygen -A
+        echo 'root:lab123' | chpasswd
+        sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+        /usr/sbin/sshd
+        sed -i 's/^bgpd=no/bgpd=yes/' /etc/frr/daemons
+        ip addr add 10.50.0.1/24 dev lo 2>/dev/null || true
+        /etc/init.d/frr start || /usr/lib/frr/frrinit.sh start || (zebra -d ; bgpd -d)
+        sleep 5
+        vtysh -c 'configure terminal' -c 'router bgp 65040' -c ' bgp router-id 10.250.0.40' -c ' no bgp ebgp-requires-policy' -c ' neighbor 10.250.0.10 remote-as 65010' -c ' address-family ipv4 unicast' -c '  network 10.50.0.0/24' -c '  neighbor 10.250.0.10 activate' -c '  exit-address-family'
+        echo "CONTABILIDADE (Alpine+FRR+SSH) pronto - AS 65040 - ssh root@localhost -p 34022 (senha lab123)"
+        tail -f /dev/null
+
+  # ===================== Cliente final (desktop Linux no navegador) =====================
+  cliente-pc:
+    image: mrcolorrain/vnc-browser:debian
+    container_name: cliente-pc
+    hostname: cliente-pc
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    shm_size: "512m"          # navegador precisa de memoria compartilhada
+    environment:
+      VNC_PASSWORD: "lab123"
+      VNC_RESOLUTION: "1440x900"
+      AUTO_START_BROWSER: "true"
+    ports:
+      - "6080:6080"           # desktop no navegador: http://localhost:6080
+      - "35900:5900"          # VNC direto (opcional), p/ cliente VNC em localhost:35900
+      - "36022:22"            # SSH: ssh -p 36022 root@localhost (senha lab123)
+    networks:
+      net-backbone:
+        ipv4_address: 10.250.0.60
+    # instala e sobe SSH no boot, depois segue o entrypoint original da imagem
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        (apt-get update && apt-get install -y openssh-server || \
+         (apt-get update && apt-get install -y --no-install-recommends openssh-server)) >/var/log/ssh-install.log 2>&1
+        mkdir -p /var/run/sshd
+        echo 'root:lab123' | chpasswd
+        sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+        service ssh start || /usr/sbin/sshd
+        # chama o entrypoint original da imagem (procura nos caminhos comuns)
+        for ep in /entrypoint.sh /app/entrypoint.sh /usr/local/bin/entrypoint.sh /startup.sh; do
+          if [ -x "$ep" ]; then exec "$ep"; fi
+        done
+        echo "entrypoint original nao encontrado; mantendo container vivo"
+        tail -f /dev/null
+
+  # ===================== SEGUNDAS INSTANCIAS =====================
+  goiastech-mikrotik:
+    image: evilfreelancer/docker-routeros:latest
+    container_name: goiastech-mikrotik
+    hostname: goiastech-mikrotik
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    devices: [/dev/net/tun]
+    environment:
+      ROUTEROS_DHCP_DNS: "8.8.8.8 1.1.1.1"
+    ports: ["43022:22", "43091:8291", "43028:8728"]
+    volumes: [goiastech_mikrotik_data:/data]
+    networks:
+      default: {}
+      net-backbone:
+        ipv4_address: 10.250.0.31
+
+  contabilidade-mikrotik:
+    image: evilfreelancer/docker-routeros:latest
+    container_name: contabilidade-mikrotik
+    hostname: contabilidade-mikrotik
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    devices: [/dev/net/tun]
+    environment:
+      ROUTEROS_DHCP_DNS: "8.8.8.8 1.1.1.1"
+    ports: ["44022:22", "44091:8291", "44028:8728"]
+    volumes: [contabilidade_mikrotik_data:/data]
+    networks:
+      default: {}
+      net-backbone:
+        ipv4_address: 10.250.0.41
+
+  mikrotik-002:
+    image: evilfreelancer/docker-routeros:latest
+    container_name: mikrotik-002
+    hostname: mikrotik-002
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    devices: [/dev/net/tun]
+    environment:
+      ROUTEROS_DHCP_DNS: "8.8.8.8 1.1.1.1"
+    ports: ["45022:22", "45091:8291", "45028:8728"]
+    volumes: [mikrotik2_data:/data]
+    networks:
+      default: {}
+      net-backbone:
+        ipv4_address: 10.250.0.51
+
+volumes:
+  vivo_data:
+  claro_data:
+  mikrotik_data:
+  mikrotik2_data:
+  goiastech_mikrotik_data:
+  contabilidade_mikrotik_data:

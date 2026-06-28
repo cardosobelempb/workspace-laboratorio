@@ -1,0 +1,36 @@
+=== PERFIS BITVISE - LAB ISP ===
+Crie um perfil para cada no: aba Login preenchida, depois
+Profile > Save profile as... > nome do no.
+
+PERFIL: VIVO
+  Host:     localhost
+  Port:     31022
+  Username: admin
+  Password: admin
+
+PERFIL: CLARO
+  Host:     localhost
+  Port:     32022
+  Username: admin
+  Password: admin
+
+PERFIL: MIKROTIK-001
+  Host:     localhost
+  Port:     35022
+  Username: admin
+  Password: admin
+
+PERFIL: GOIASTECH
+  Host:     localhost
+  Port:     33022
+  Username: root
+  Password: lab123
+
+PERFIL: CONTABILIDADE
+  Host:     localhost
+  Port:     34022
+  Username: root
+  Password: lab123
+
+Dica: abra varias janelas do Bitvise (uma por perfil) para ficar
+com os 5 conectados ao mesmo tempo.

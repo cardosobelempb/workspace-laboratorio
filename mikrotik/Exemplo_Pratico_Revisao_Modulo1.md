@@ -41,11 +41,11 @@ set name="mikrotik-001"
 
 # Renomear as interfaces para facilitar a administracao
 /interface ethernet
-set [find default-name=ether1] name=ether1-wan-operadora
-set [find default-name=ether2] name=ether2-lan-geral
-set [find default-name=ether3] name=ether3-ether3-lan-financeiro
+set [find default-name=ether1] name=ether1-wan-link
+set [find default-name=ether2] name=ether2-lan-cliente
+set [find default-name=ether3] name=ether3-lan-financeiro
 set [find default-name=ether4] name=ether4-lan-servidores
-set [find default-name=ether5] name=ether5-lan-visitantes
+set [find default-name=wlan1] name=wlan1-lan-visitantes
 ```
 
 **Verificação:**
